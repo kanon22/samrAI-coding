@@ -1,0 +1,68 @@
+language: cpp
+
+matrix:
+  include:
+    - os: linux
+      dist: trusty
+      sudo: false
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - gcc-4.8
+      compiler: gcc-4.8
+      env:
+        - NAME=ubuntu-trusty
+        - MATRIX_EVAL="CC=gcc-4.8 && CXX=g++-4.8"
+    - os: osx
+      osx_image: xcode7.3
+      compiler: clang
+      env: NAME=osx-xcode7.3
+
+cache:
+  ccache: true
+  directories:
+  - $HOME/local
+
+env:
+    global:
+        - BOOST_VERSION='1_64_0'
+        - BOOST_SRC_URL='https://dl.bintray.com/boostorg/release/1.64.0/source/boost_1_64_0.tar.gz'
+
+before_install:
+    - eval "${MATRIX_EVAL}"
+
+install:
+    - export REPO=`pwd`
+    - export ARCH=`uname -m`
+    - $REPO/.travis/setup.sh
+
+script:
+    - cd $REPO/official
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then make CXX="${CXX}" CXXFLAGS="-I $HOME/local/include -std=c++11 -pthread -W -Wall -g -ggdb" AM_LDFLAGS="-L $HOME/local/lib -static -lboost_system -lboost_filesystem -lboost_program_options -Wl,--whole-archive -lpthread -Wl,--no-whole-archive"; fi
+    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then make CXX="${CXX}" AM_LDFLAGS="/usr/local/lib/libboost_system.a /usr/local/lib/libboost_filesystem.a /usr/local/lib/libboost_program_options.a"; fi
+    - cd $REPO/player
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then make CXXFLAGS="-pthread -std=c++11 -W -Wall -g -ggdb" AM_LDFLAGS="-static -Wl,--whole-archive -lpthread -Wl,--no-whole-archive"; fi
+    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then make; fi
+
+before_deploy:
+  - cd $HOME
+  - mkdir deploy
+  - cd deploy
+  - cp -rfv $REPO Software2017-18
+  - rm -rfv Software2017-18/.git
+  - rm -fv Software2017-18/.gitignore
+  - rm -rfv Software2017-18/.travis
+  - rm -fv Software2017-18/.travis.yml
+  - rm -fv Software2017-18/README.md
+  - tar -zcvf "${HOME}/deploy/Software2017-18_${TRAVIS_TAG}_${ARCH}-${NAME}.tar.gz" ./Software2017-18
+
+deploy:
+  provider: releases
+  api_key:
+    secure: "Kpa8wX0K9LfQbBxt4ZcMpls1XDbzXUdYfBb/5IT7qHt8MIRFX004AeGzb3pbFuzQrZzxhy12AZWx7dFruYLxddiWKoZMbxOcDjWXiBzHFeHdF2tzt8fuF1kSVWEu/oyBllWGlmswYq3+G2J4/Jjt0ajiap71DCDlzBRaKi/lOlv5sxNz6EAArKm+s0d9rwNm23WHYSz9QfZik/m5dAJLYONvE/N6VxWrIJD58hyWfyG8QqCbbfhc///AyTJ0LYirN2MyzhfvqBYCc+PyQZ48ePiB4iDlpzo4o3nePVvet7dNt7h7co6YVISLJmIdxhQELilI85espwDhXvFSAEzqzqkC3i2jF56Ya55k1HXe372tiHDpK7n1ur2RQLPnUkXG8rcruw+us3SWc1IJm/liHiAIOUCGXXsojkgP9MwW+4fJm/3mmO5CR4Oh+1kihhQjmF3TPllYKVTrDuKhfTGdWS4QyDx0erqWVX3mhpIV/glscY+Ky0H9GcZZOTq0ASdxpA27cZXO/0IHeiZ9OZBb20R0qLEBF53IlK5TLBR7B8DYCtq4Hi4CWgtx2gL6D01DesIS7UAHKPATmDDn3iau6yz7HEq+HVQOZoW+86vCk4ovWiIzGZzkn/q7N7HWMsCeyj2qKo31XtOw+9Q0hhznkLt8z4ElQr49ZE4tSu8dDWE="
+  file: ${HOME}/deploy/Software2017-18_${TRAVIS_TAG}_${ARCH}-${NAME}.tar.gz
+  skip_cleanup: true
+  on:
+    tags: true
